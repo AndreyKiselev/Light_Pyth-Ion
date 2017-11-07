@@ -373,7 +373,7 @@ class GUIForm(QtGui.QMainWindow):
         if self.selectMakeIV == 1:
             print('makeIV exp')
         self.cutplot.clear()
-        (AllData, a) = uf.CutDataIntoVoltageSegments(self.out, extractedSegments = self.cutplot, x=xlab, y=ylab, delay=1, plotSegments=1)
+        (AllData, a) = uf.CutDataIntoVoltageSegments(self.data, extractedSegments = self.cutplot, x=xlab, y=ylab, delay=1, plotSegments=1)
         if AllData is not 0:
          #    Make IV
             (self.IVData, b) = uf.MakeIV(AllData, plot=1)
