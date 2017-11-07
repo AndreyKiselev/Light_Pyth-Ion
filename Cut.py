@@ -4,7 +4,6 @@ import pandas as pd #pandas data
 import os #pathname manipulations
 from Plot import *
 import numpy.ma as ma # mask for arrays 
-from timeit import default_timer as timer
 def cut(self):
         
     ###### first check to see if cutting############
@@ -36,8 +35,6 @@ def cut(self):
             pass
         
         self.t = self.t[mask]
-        self.b = timer()
-        print('masking took:' + str(self.b-a) + 's')
         self.p1.clear()
         #self.p1.plot(self.t,self.data['i1'],pen='b', symbol = 'o')
         self.lr=[]
@@ -59,5 +56,4 @@ def cut(self):
                 DoublePlot(self)
             else:
                 PlotSingle(self)  
-        c=timer()
-        print('plotting took:' + str(c-self.b) + 's')     
+     

@@ -50,12 +50,12 @@ def Load(self, loadandplot = True): #file loader works with getfile()
     if str(os.path.splitext(self.datafilename)[1])=='.dat':
         print('Loading Axopatch Data')
         ds_factor = 1 #Scaling factor for time
-        self.out=ImportAxopatchData(self.datafilename)
+        self.data = ImportAxopatchData(self.datafilename)
         self.matfilename = str(os.path.splitext(self.datafilename)[0])
-        self.outputsamplerate=self.out['samplerate']
-        print('samplrt='+ str(self.outputsamplerate))
-        self.ui.outputsamplerateentry.setText(str(self.out['samplerate']/1000))
-        if self.out['graphene']:
+        self.outputsamplerate=self.data['samplerate']
+        print('samplrate='+ str(self.outputsamplerate))
+        self.ui.outputsamplerateentry.setText(str(self.data['samplerate']/1000))
+        if self.data['graphene']:
             self.ui.AxopatchGroup.setVisible(1)
         else:
             self.ui.AxopatchGroup.setVisible(0)
@@ -63,60 +63,58 @@ def Load(self, loadandplot = True): #file loader works with getfile()
 
     if str(os.path.splitext(self.datafilename)[1]) == '.log':
         print('Loading Chimera File')
-        self.out = ImportChimeraData(self.datafilename)
-        self.ui.outputsamplerateentry.setText(str(self.out['samplerate'] / 1000))
+        self.data = ImportChimeraData(self.datafilename)
+        self.ui.outputsamplerateentry.setText(str(self.data['samplerate'] / 1000))
         self.matfilename = str(os.path.splitext(self.datafilename)[0])
-        if self.out['type']  == 'ChimeraNotRaw':
+        if self.data['type']  == 'ChimeraNotRaw':
             ds_factor = 1 #Scaling factor for time
-            self.data['i1'] = self.out['i1']
             print('chimera not raw')
             print('Amount of points before filtering:' + str(self.data['i1'].shape)+ ' Points')
-            print('Samplerate before filtering:' + str(self.out['samplerate'])+ 'Hz')
-            self.vdata = self.out['v1']
-            self.ui.outputsamplerateentry.setText(str(self.out['samplerate']/1000))
+            print('Samplerate before filtering:' + str(self.data['samplerate'])+ 'Hz')
+            self.vdata = self.data['v1']
+            self.ui.outputsamplerateentry.setText(str(self.data['samplerate']/1000))
         else:
-            self.ui.outputsamplerateentry.setText(str(self.out['samplerate'] / 1000))
+            self.ui.outputsamplerateentry.setText(str(self.data['samplerate'] / 1000))
             print('chimera raw')
-            print('Amount of points before filtering:' + str(self.out['i1raw'].shape))
-            print('Samplerate before filtering:' + str(self.out['samplerate']))
+            print('Amount of points before filtering:' + str(self.data['i1raw'].shape))
+            print('Samplerate before filtering:' + str(self.data['samplerate']))
             s=timer()
-            ds_factor = self.out['samplerate']/self.Samplerate_aftr_LPF  #down sampling factor
+            ds_factor = self.data['samplerate']/self.Samplerate_aftr_LPF  #down sampling factor
             if ds_factor>1:
-                Wn = round(2*self.LPfiltercutoff/(self.out['samplerate']), 4)   # [0,1] nyquist frequency
+                Wn = round(2*self.LPfiltercutoff/(self.data['samplerate']), 4)   # [0,1] nyquist frequency
                 b, a = signal.bessel(4, Wn, btype='low', analog=False) #4-th order digital filter
-                Filt_sig = signal.filtfilt(b, a, self.out['i1raw'])
+                Filt_sig = signal.filtfilt(b, a, self.data['i1raw'])
                 print('signal filtered')
                     
-                self.out['i1'] = scipy.signal.resample(Filt_sig, int(len(self.out['i1raw'])/ds_factor) )    
+                self.data['i1'] = scipy.signal.resample(Filt_sig, int(len(self.data['i1raw'])/ds_factor) )    
                 print('signal resampled')
-                self.out['samplerate'] = self.out['samplerate'] / ds_factor
-                print('Samplerate after filtering:' + str(self.out['samplerate']))   
+                self.data['samplerate'] = self.data['samplerate'] / ds_factor
+                print('Samplerate after filtering:' + str(self.data['samplerate']))   
             else:
                 print('Warning!!! Low Pass Filter value was inserted incorrect! LPF must be less than Output Samplerate')
                     
 
-            self.data['i1'] = self.out['i1']
-            self.vdata = np.ones(len(self.data)) * self.out['v1']
+            self.data['i1'] = self.data['i1']
+            self.vdata = np.ones(len(self.data)) * self.data['v1']
             e=timer()
             print('Chimera Loading: ' + 'time reqired: ' + str(e-s) + ' sec.')
-    self.data['i1'] = self.out['i1']
-    self.data['v1'] = self.out['v1']
     self.var['i1']=np.std(self.data['i1'])
-    if str(os.path.splitext(self.datafilename)[1]) != '.log' and self.out['graphene']:
-        self.data['i2'] = self.out['i2']
-        self.data['v2'] = self.out['v2']
-        self.var['i2']=np.std(self.data['i2'])
-    self.outputsamplerate=self.out['samplerate']
-    self.t = np.arange(len(self.out['i1']))  # Setting up time series
+    
+    if str(os.path.splitext(self.datafilename)[1]) != '.log' and self.data['graphene']:
+        self.var['i2'] = np.std(self.data['i2'])
+    self.outputsamplerate = self.data['samplerate']
+    
+    self.t = np.arange(len(self.data['i1']))  # Setting up time series
     print('Number of points = '+ str(len(self.t)))
-    print('Length of experiment = '+str(len(self.out['i1'])/self.out['samplerate'] )+ ' s')
-    self.t = self.t/(self.out['samplerate'])
+    print('Length of experiment = '+str(len(self.data['i1'])/self.data['samplerate'] )+ ' s')
+    self.t = self.t/(self.data['samplerate'])
     if loadandplot:
         self.Plot()
 
 
 def ImportAxopatchData(datafilename):
-    x=np.fromfile(datafilename, np.dtype('>f4'))
+    x = np.memmap(datafilename, np.dtype('>f4'), mode='r')
+
     f=open(datafilename, 'rb')
     graphene=0
     for i in range(0, 10):
@@ -130,6 +128,8 @@ def ImportAxopatchData(datafilename):
             graphene=1
             print('This File Has a Graphene Channel!')
     end = len(x)
+    f.close()
+    data = {}
     if graphene:
         #pore current
         i1 = x[250:end-3:4]
@@ -139,13 +139,13 @@ def ImportAxopatchData(datafilename):
         v1 = x[252:end-1:4]
         #graphene voltage
         v2 = x[253:end:4]
-        print('The femto was set to : {} Hz, if this value was correctly entered in the LabView!'.format(str(femtoLP)))
-        output={'FemtoLowPass': femtoLP, 'type': 'Axopatch', 'graphene': 1, 'samplerate': samplerate, 'i1': i1, 'v1': v1, 'i2': i2, 'v2': v2, 'filename': datafilename}
+        print('The femto was set to : {} Hz, if this value was correctly entered in the LabView!'.format(str(femtoLP)))      
+        data = {'FemtoLowPass': femtoLP, 'type': 'Axopatch', 'graphene': 1, 'samplerate': samplerate, 'i1': i1, 'v1': v1, 'i2': i2, 'v2': v2, 'filename': datafilename}
     else:
         i1 = np.array(x[250:end-1:2])
         v1 = np.array(x[251:end:2])
-        output={'type': 'Axopatch', 'graphene': 0, 'samplerate': samplerate, 'i1': i1, 'v1': v1, 'filename': datafilename}
-    return output
+        data = {'type': 'Axopatch', 'graphene': 0, 'samplerate': samplerate, 'i1': i1, 'v1': v1, 'filename': datafilename}
+    return data
 
 def ImportChimeraRaw(datafilename):
     matfile=io.loadmat(str(os.path.splitext(datafilename)[0]))
@@ -164,7 +164,7 @@ def ImportChimeraRaw(datafilename):
     data = -ADCvref + (2 * ADCvref) * (data & bitmask) / 2 ** 16
     data = (data / closedloop_gain + currentoffset)
     data.shape = [data.shape[1], ]
-    output = {'matfilename': str(os.path.splitext(datafilename)[0]),'i1raw': data, 'v1': np.float64(matfile['SETUP_mVoffset']), 'samplerate': np.int64(samplerate), 'type': 'ChimeraRaw', 'filename': datafilename} #final data representation
+    output = {'matfilename': str(os.path.splitext(datafilename)[0]),'i1raw': data, 'v1': np.float64(matfile['SETUP_mVoffset']), 'samplerate': np.int64(samplerate), 'type': 'ChimeraRaw', 'filename': datafilename, 'graphene': 0} #final data representation
     return output
 
 def ImportChimeraData(datafilename):
@@ -174,7 +174,7 @@ def ImportChimeraData(datafilename):
         data = np.fromfile(datafilename, np.dtype('float64'))
         buffersize = matfile['DisplayBuffer']
         out = Reshape1DTo2D(data, buffersize)
-        output = {'i1': out['i1'], 'v1': out['v1'], 'samplerate':float(samplerate), 'type': 'ChimeraNotRaw', 'filename': datafilename} #final data representation
+        output = {'i1': out['i1'], 'v1': out['v1'], 'samplerate':float(samplerate), 'type': 'ChimeraNotRaw', 'filename': datafilename, 'graphene': 0} #final data representation
     else:
         output = ImportChimeraRaw(datafilename)
     return output

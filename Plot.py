@@ -32,7 +32,7 @@ def PlotSingle(self):
     self.p1.plot(self.t, temp_i, pen='b') #plotting current plot
     
 
-    if self.out['type'] == 'ChimeraRaw':
+    if self.data['type'] == 'ChimeraRaw':
         self.voltagepl.addLine(y=self.data['v1'], pen='b')
     else:
         self.voltagepl.plot(self.t, temp_v, pen='b')
@@ -42,11 +42,11 @@ def PlotSingle(self):
         aphhist = pg.PlotCurveItem(aphx, aphy, stepMode=True, fillLevel=0, brush='b')
         self.p3.addItem(aphhist)
         self.psdplot.clear()
-        MakePSD(temp_i, self.out['samplerate'], self.psdplot)
-        siSamplerate = pg.siScale(self.out['samplerate'])
+        MakePSD(temp_i, self.data['samplerate'], self.psdplot)
+        siSamplerate = pg.siScale(self.data['samplerate'])
         siSTD = pg.siScale(np.std(temp_i))
 
-        self.ui.SampleRateLabel.setText('Samplerate: ' + str(self.out['samplerate'] * siSamplerate[0]) + siSamplerate[1] + 'Hz')
+        self.ui.SampleRateLabel.setText('Samplerate: ' + str(self.data['samplerate'] * siSamplerate[0]) + siSamplerate[1] + 'Hz')
         self.ui.STDLabel.setText('STD: ' + str(siSTD[0] * np.std(temp_i)) + siSTD[1] + 'A')
     
     self.voltagepl.enableAutoRange(axis='y')

@@ -161,7 +161,7 @@
           </size>
          </property>
          <property name="currentIndex">
-          <number>6</number>
+          <number>1</number>
          </property>
          <widget class="QWidget" name="tab">
           <property name="sizePolicy">
@@ -1280,7 +1280,7 @@ border-color: rgb(0, 0, 0);</string>
            <property name="geometry">
             <rect>
              <x>610</x>
-             <y>240</y>
+             <y>260</y>
              <width>275</width>
              <height>47</height>
             </rect>
@@ -1601,13 +1601,35 @@ border-color: rgb(0, 0, 0);</string>
              <x>610</x>
              <y>10</y>
              <width>321</width>
-             <height>200</height>
+             <height>234</height>
             </rect>
            </property>
            <layout class="QGridLayout" name="gridLayout_19">
             <property name="horizontalSpacing">
              <number>0</number>
             </property>
+            <item row="3" column="1">
+             <widget class="QLineEdit" name="Safety_region">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Ubuntu</family>
+                <pointsize>12</pointsize>
+                <weight>50</weight>
+                <italic>true</italic>
+                <bold>false</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>15.0</string>
+              </property>
+             </widget>
+            </item>
             <item row="5" column="0">
              <widget class="QLabel" name="label_34">
               <property name="sizePolicy">
@@ -1812,28 +1834,6 @@ border-color: rgb(0, 0, 0);</string>
               </property>
              </widget>
             </item>
-            <item row="3" column="1">
-             <widget class="QLineEdit" name="Safety_region">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="font">
-               <font>
-                <family>Ubuntu</family>
-                <pointsize>12</pointsize>
-                <weight>50</weight>
-                <italic>true</italic>
-                <bold>false</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>15.0</string>
-              </property>
-             </widget>
-            </item>
             <item row="4" column="1">
              <widget class="QLineEdit" name="levelthresholdentry">
               <property name="sizePolicy">
@@ -1875,6 +1875,50 @@ border-color: rgb(0, 0, 0);</string>
               </property>
               <property name="text">
                <string>0.1</string>
+              </property>
+             </widget>
+            </item>
+            <item row="6" column="0">
+             <widget class="QLabel" name="label_37">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Ubuntu</family>
+                <pointsize>12</pointsize>
+                <weight>50</weight>
+                <italic>true</italic>
+                <bold>false</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>Miximal duration(ms):</string>
+              </property>
+             </widget>
+            </item>
+            <item row="6" column="1">
+             <widget class="QLineEdit" name="max_duration">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="font">
+               <font>
+                <family>Ubuntu</family>
+                <pointsize>12</pointsize>
+                <weight>50</weight>
+                <italic>true</italic>
+                <bold>false</bold>
+               </font>
+              </property>
+              <property name="text">
+               <string>4.0</string>
               </property>
              </widget>
             </item>
@@ -3206,6 +3250,13 @@ border-color: rgb(0, 0, 0);</string>
            </property>
            <property name="text">
             <string>INVERT</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QPushButton" name="analyzebutton">
+           <property name="text">
+            <string>analyze</string>
            </property>
           </widget>
          </item>

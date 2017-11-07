@@ -579,10 +579,10 @@ def MatplotLibCurrentSignal(self):
 def SaveToHDF5(self):
     f = h5py.File(self.matfilename + '_OriginalDB.hdf5', "w")
     general = f.create_group("General")
-    general.create_dataset('FileName', data=self.out['filename'])
-    general.create_dataset('Samplerate', data=self.out['samplerate'])
-    general.create_dataset('Machine', data=self.out['type'])
-    general.create_dataset('TransverseRecorded', data=self.out['graphene'])
+    general.create_dataset('FileName', data=self.data['filename'])
+    general.create_dataset('Samplerate', data=self.outputsamplerate)
+    general.create_dataset('Machine', data=self.data['type'])
+    general.create_dataset('TransverseRecorded', data=self.data['graphene'])
     segmentation_LP = f.create_group("LowPassSegmentation")
     for k,l in self.AnalysisResults.items():
         set1 = segmentation_LP.create_group(k)
@@ -691,16 +691,10 @@ def RecursiveLowPassFast(signal, coeff, self):
 
     return np.array(RoughEventLocations)
 
-def RecursiveLowPassFastUp(signal, coeff, self, zero_points, Delay_back_points, backPoint_coef):
-    ml = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], self.out['i1'])
-    vl = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], np.square(self.out['i1'] - ml))
-    ml = ml[int(zero_points -backPoint_coef* Delay_back_points):int(zero_points)]
-    vl = vl[int(zero_points -backPoint_coef* Delay_back_points):int(zero_points)]
-    #ml = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], signal)
-    #vl = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], np.square(signal - ml))
+def RecursiveLowPassFastUp(signal, coeff):
+    ml = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], signal)
+    vl = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], np.square(signal - ml))
     sl = ml + coeff['S'] * np.sqrt(vl)
-    self.p1.plot(np.arange(int(zero_points -backPoint_coef* Delay_back_points), int(zero_points),1)/self.out['samplerate'], sl, pen=pg.mkPen(color=(173, 27, 183), width=3))
-    #self.p1.plot(np.arange(int(zero_points -2* Delay_back_points), int(zero_points),1)/self.out['samplerate'], sl, pen=pg.mkPen(color=(173, 27, 183), width=3))
     Ni = len(signal)
     points = np.array(np.where(signal>=sl)[0])
     to_pop=np.array([])
@@ -744,14 +738,14 @@ def AddInfoAfterRecursive(self):
     
     #self.p1.plot(self.t, np.sin(self.t), pen='b')
     #self.p1.plt.axvline(10, color='green')
-    
+    print('Info about channel:'  + str(self.sig))
     startpoints = np.uint64(self.AnalysisResults[self.sig]['RoughEventLocations'][:, 0])
     endpoints = np.uint64(self.AnalysisResults[self.sig]['RoughEventLocations'][:, 1])
     localBaseline = self.AnalysisResults[self.sig]['RoughEventLocations'][:, 2]
     localVariance = self.AnalysisResults[self.sig]['RoughEventLocations'][:, 3]
     print('Start points=')
     print('type='+ str(type(startpoints[0])))
-    for (j,k) in enumerate(startpoints): print("%10.7f"% float(startpoints[j]/self.out['samplerate']))
+    for (j,k) in enumerate(startpoints): print("%10.7f"% float(startpoints[j]/self.outputsamplerate))
     CusumBaseline=500
     numberofevents = len(startpoints)
     self.AnalysisResults[self.sig]['StartPoints'] = startpoints
@@ -765,18 +759,18 @@ def AddInfoAfterRecursive(self):
 
     deli = np.zeros(numberofevents)
     dwell = np.zeros(numberofevents)
-    limit=500e-6*self.out['samplerate']
+    limit=500e-6*self.outputsamplerate  #0.5 ms
     AllFits={}
 
     for i in range(numberofevents):
         length = endpoints[i] - startpoints[i]
         if length <= limit and length>3:
             # Impulsion Fit to minimal value
-            deli[i] = localBaseline[i] - np.min(self.out[self.sig][int(startpoints[i]+1):int(endpoints[i]-1)])
-            dwell[i] = (endpoints[i] - startpoints[i]) / self.out['samplerate']
+            deli[i] = localBaseline[i] - np.min(self.data[self.sig][int(startpoints[i]+1):int(endpoints[i]-1)])
+            dwell[i] = (endpoints[i] - startpoints[i]) / self.outputsamplerate #length of event
         elif length > limit:
-            deli[i] = localBaseline[i] - np.mean(self.out[self.sig][int(startpoints[i]+5):int(endpoints[i]-5)])
-            dwell[i] = (endpoints[i] - startpoints[i]) / self.out['samplerate']
+            deli[i] = localBaseline[i] - np.mean(self.data[self.sig][int(startpoints[i]+5):int(endpoints[i]-5)])
+            dwell[i] = (endpoints[i] - startpoints[i]) / self.outputsamplerate
             # # Cusum Fit
             # sigma = np.sqrt(localVariance[i])
             # delta = 2e-9
@@ -788,12 +782,12 @@ def AddInfoAfterRecursive(self):
             # AllFits['Event' + str(i)]['mc'] = mc
             # AllFits['Event' + str(i)]['krmv'] = krmv
         else:
-            deli[i] = localBaseline[i] - np.min(self.out[self.sig][startpoints[i]:endpoints[i]])
-            dwell[i] = (endpoints[i] - startpoints[i]) / self.out['samplerate']
+            deli[i] = localBaseline[i] - np.min(self.data[self.sig][startpoints[i]:endpoints[i]])
+            dwell[i] = (endpoints[i] - startpoints[i]) / self.outputsamplerate
 
     frac = deli / localBaseline
     dt = np.array(0)
-    dt = np.append(dt, np.diff(startpoints) / self.out['samplerate'])
+    dt = np.append(dt, np.diff(startpoints) / self.outputsamplerate)
     numberofevents = len(dt)
 
     #self.AnalysisResults[self.sig]['CusumFits'] = AllFits
@@ -816,9 +810,9 @@ def SavingAndPlottingAfterRecursive(self):
     if not self.ui.actionDon_t_Plot_if_slow.isChecked():
         self.p1.clear()
         # Event detection plot, Main Window
-        self.p1.plot(self.t, self.out[self.sig], pen='b')
-        self.p1.plot(self.t[startpoints],  self.out[self.sig][startpoints], pen=None, symbol='o', symbolBrush='g', symbolSize=10)
-        self.p1.plot(self.t[endpoints],  self.out[self.sig][endpoints], pen=None, symbol='o', symbolBrush='r', symbolSize=10)
+        self.p1.plot(self.t, self.data[self.sig], pen='b')
+        self.p1.plot(self.t[startpoints],  self.data[self.sig][startpoints], pen=None, symbol='o', symbolBrush='g', symbolSize=10)
+        self.p1.plot(self.t[endpoints],  self.data[self.sig][endpoints], pen=None, symbol='o', symbolBrush='r', symbolSize=10)
         #self.p1.plot(self.t[startpoints-10], localBaseline, pen=None, symbol='x', symbolBrush='y', symbolSize=10)
 
     try:
@@ -864,13 +858,13 @@ def SavingAndPlottingAfterRecursive(self):
         #            self.w2.addItem(hist)
 
         hist = pg.BarGraphItem(height=fracy, x0=fracx[:-1], x1=fracx[1:], brush=x)
-        self.w2.addItem(hist)
+        self.w2.addItem(hist) #Frac histogram plot
 
         #            hist = pg.PlotCurveItem(delix, deliy , stepMode = True, fillLevel=0, brush = x, pen = 'k')
         #            self.w3.addItem(hist)
 
         hist = pg.BarGraphItem(height=deliy, x0=delix[:-1], x1=delix[1:], brush=x)
-        self.w3.addItem(hist)
+        self.w3.addItem(hist) #Deli histogram plot
         #            self.w3.autoRange()
         self.w3.setRange(
             xRange=[float(self.ui.delirange0.text()) * 10 ** -9, float(self.ui.delirange1.text()) * 10 ** -9])
@@ -879,13 +873,13 @@ def SavingAndPlottingAfterRecursive(self):
         #            self.w4.addItem(hist)
 
         hist = pg.BarGraphItem(height=dwelly, x0=dwellx[:-1], x1=dwellx[1:], brush=x)
-        self.w4.addItem(hist)
+        self.w4.addItem(hist) #Dwell histogram plot
 
         #            hist = pg.PlotCurveItem(dtx, dty , stepMode = True, fillLevel=0, brush = x, pen = 'k')
         #            self.w5.addItem(hist)
 
         hist = pg.BarGraphItem(height=dty, x0=dtx[:-1], x1=dtx[1:], brush=x)
-        self.w5.addItem(hist)
+        self.w5.addItem(hist) #Dt histogram plot
 
 def save(self):
     np.savetxt(self.matfilename + 'DB.txt', np.column_stack((self.deli, self.frac, self.dwell, self.dt)),
@@ -908,7 +902,7 @@ def PlotEventSingle(self, clicked=[]):
     
     # plot event trace
     self.p3.plot(self.t[int(startpoints[eventnumber] - eventbuffer):int(endpoints[eventnumber] + eventbuffer)],
-                 self.out[sig][int(startpoints[eventnumber] - eventbuffer):int(endpoints[eventnumber] + eventbuffer)],
+                 self.data[sig][int(startpoints[eventnumber] - eventbuffer):int(endpoints[eventnumber] + eventbuffer)],
                  pen='b')
 
     # plot event fit
@@ -919,6 +913,36 @@ def PlotEventSingle(self, clicked=[]):
         np.repeat(np.array([localBaseline[eventnumber]]), eventbuffer)), 0),
                  pen=pg.mkPen(color=(173, 27, 183), width=3))
 
+    self.p3.autoRange()
+
+def PlotEventSingle_CUSUM(self, clicked=[]):
+    #f = h5py.File(self.matfilename + '_OriginalDB.hdf5', "r")
+    sig='i1'
+
+    startpoints=self.cusum['i1']['Real_Start']
+    endpoints=self.cusum['i1']['Real_End']
+    localBaseline=self.cusum['i1']['Real_Depth']
+    self.NumberOfEvents = len(startpoints)
+    # Reset plot
+    self.p3.setLabel('bottom', text='Time', units='s')
+    self.p3.setLabel('left', text='Current', units='A')
+    self.p3.clear()
+    eventnumber = np.int(self.ui.eventnumberentry.text())
+    eventbuffer = np.int(self.ui.eventbufferentry.value())
+    print('Start Points = ' + str(startpoints[eventnumber]))
+    print('Start Points = ' + str(endpoints[eventnumber]))
+    # plot event trace
+    self.p3.plot(self.t[int(startpoints[eventnumber] - eventbuffer):int(endpoints[eventnumber] + eventbuffer)],
+                 self.data['i1'][int(startpoints[eventnumber] - eventbuffer):int(endpoints[eventnumber] + eventbuffer)],
+                 pen='b')
+    
+    # plot event fit
+    self.p3.plot(self.t[int(startpoints[eventnumber] - eventbuffer):int(endpoints[eventnumber] + eventbuffer)], np.concatenate((
+        np.repeat(np.mean(self.data['i1'][int(startpoints[eventnumber] - eventbuffer):int(startpoints[eventnumber])]), eventbuffer),
+        np.repeat(localBaseline[eventnumber], endpoints[eventnumber] - startpoints[eventnumber]),
+        np.repeat(np.mean(self.data['i1'][int(endpoints[eventnumber]):int(endpoints[eventnumber] + eventbuffer)]), eventbuffer)), 0),
+                 pen=pg.mkPen(color=(173, 27, 183), width=3))
+    
     self.p3.autoRange()
 
 def PlotEventDouble(self, clicked=[]):
@@ -1226,6 +1250,8 @@ def PlotEvent(t1, t2, i1, i2, fit1 = np.array([]), fit2 = np.array([])):
 def EditInfoText(self):
     text2='ionic: {} events, trans: {} events\n'.format(str(self.AnalysisResults['i1']['RoughEventLocations'].shape[0]), str(self.AnalysisResults['i2']['RoughEventLocations'].shape[0]))
     text1='The file contains:\n{} Common Events\n{} Ionic Only Events\n{} Transverse Only Events'.format(len(self.CommonIndexes['i1']), len(self.OnlyIndexes['i1']), len(self.OnlyIndexes['i2']))
+    print(text2)
+    print(text1)
     self.ui.InfoTexts.setText(text2+text1)
 
 def creation_date(path_to_file):

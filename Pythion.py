@@ -62,7 +62,7 @@ class GUIForm(QtGui.QMainWindow):
         ##########CUT LOAD BASELINE etc. BUTTONS connection to implementation functions##################################
         self.ui.loadbutton.clicked.connect(self.loadfile) #loadbutton
         self.ui.clearscatterbutton.clicked.connect(self.clearscatter) #clear data
-        #self.ui.analyzebutton.clicked.connect(self.analyze) #analyze
+        self.ui.analyzebutton.clicked.connect(self.analyze) #analyze using Low Pass filter
         #self.ui.baselinebutton.clicked.connect(self.baselinecalc) #baseline
         self.ui.fitbutton.clicked.connect(self.Analyze) #fit using CUSUM
         self.ui.cutbutton.clicked.connect(self.CutData) #cutbutton
@@ -185,26 +185,26 @@ class GUIForm(QtGui.QMainWindow):
         self.w1.setLabel('left', text = 'Fractional Current Blockage')
         self.w1.setLogMode(x = True,y = False)
         self.w1.showGrid(x = True, y = True)
-        self.cb = pg.ColorButton(self.ui.scatterplot, color = (0,0,255,50))
+        self.cb = pg.ColorButton(self.ui.scatterplot, color = (0,0,255,50)) #small button left corner
         self.cb.setFixedHeight(30)
         self.cb.setFixedWidth(30)
         self.cb.move(0,250)
         self.cb.show()
 
         #########Frachist plot###########################
-        self.w2 = self.ui.frachistplot.addPlot()
+        self.w2 = self.ui.frachistplot.addPlot()  #frac plot
         self.w2.setLabel('bottom', text = 'Fractional Current Blockage')
         self.w2.setLabel('left', text = 'Counts')
 
         ##########Delihist plot##########################
 
-        self.w3 = self.ui.delihistplot.addPlot()
+        self.w3 = self.ui.delihistplot.addPlot() #deli histogram plot
         self.w3.setLabel('bottom', text = 'ΔI', units = 'A')
         self.w3.setLabel('left', text = 'Counts')
 
         ##########Dwell Hist Plot########################
 
-        self.w4 = self.ui.dwellhistplot.addPlot()
+        self.w4 = self.ui.dwellhistplot.addPlot() 
         self.w4.setLabel('bottom', text = 'Log Dwell Time', units = 'μs')
         self.w4.setLabel('left', text = 'Counts')
 
@@ -311,6 +311,8 @@ class GUIForm(QtGui.QMainWindow):
         self.sdf = pd.DataFrame(columns = ['fn','color','deli','frac',
             'dwell','dt','startpoints','endpoints'])
     def loadfile(self): 
+        self.ui.ndChannel.setChecked(False)
+        self.ui.plotBoth.setChecked(False)
         Load.getfile(self)
     
     def UpdateIV(self): #Updating conductance and Pore Size data! Start before any button pressed
@@ -555,16 +557,16 @@ class GUIForm(QtGui.QMainWindow):
         #self.p1.clear()
         #self.p1.setDownsampling(ds = False)
         min_duration_points = int(np.float64(self.ui.min_duration.text()) * 1e-3 * self.outputsamplerate)
-        cusum = {}
-        cusum['i1'] = detection(self, self.data['i1'], dt = 1/self.outputsamplerate, threshhold  = np.float64(self.ui.levelthresholdentry.text()) * 1e-9, minlength = min_duration_points, maxstates = 10000)
+        self.cusum = {}
+        self.cusum['i1'] = detection(self, self.data['i1'], dt = 1/self.outputsamplerate, threshhold  = np.float64(self.ui.levelthresholdentry.text()) * 1e-9, minlength = min_duration_points, maxstates = 10000)
         try: 
-            cusum['i2'] = detection(self, self.data['i2'], dt = 1/self.outputsamplerate, threshhold  = np.float64(self.ui.levelthresholdentry.text()) * 1e-9, minlength = min_duration_points, maxstates = 10000)
+            self.cusum['i2'] = detection(self, self.data['i2'], dt = 1/self.outputsamplerate, threshhold  = np.float64(self.ui.levelthresholdentry.text()) * 1e-9, minlength = min_duration_points, maxstates = 10000)
         except KeyError: 
             pass
-        print_fitting(self, cusum['i1'])
+        print_fitting(self, self.cusum['i1'])
         print('everythink ok')
         
-        return cusum
+        return 0
 
         
         
@@ -675,25 +677,23 @@ class GUIForm(QtGui.QMainWindow):
         self.coefficients = {}
         self.coefficients['i1'] = {'a': np.float(self.ui.LP_a.value()), 'E': np.float(self.ui.LP_E.value()),
                                    'S': np.float(self.ui.LP_S.value()),
-                                   'eventlengthLimit': np.float(self.ui.LP_eventlengthThresh.value()) * self.out[
-                                       'samplerate']}
-        if self.out['graphene']:
+                                   'eventlengthLimit': np.float(self.ui.LP_eventlengthThresh.value()) * self.outputsamplerate}
+        if self.data['graphene']:
             self.coefficients['i2'] = {'a': np.float(self.ui.LP_a_2.value()), 'E': np.float(self.ui.LP_E_2.value()),
                                  'S': np.float(self.ui.LP_S_2.value()),
-                                 'eventlengthLimit': np.float(self.ui.LP_eventlengthThresh_2.value()) * self.out[
-                                     'samplerate']}
+                                 'eventlengthLimit': np.float(self.ui.LP_eventlengthThresh_2.value()) * self.outputsamplerate}
             chan = ['i1', 'i2']
             start1 = timer()
             for sig in chan:
                 self.AnalysisResults[sig] = {}
-                self.AnalysisResults[sig]['RoughEventLocations'] = uf.RecursiveLowPassFast(self.out[sig], self.coefficients[sig], self)
+                self.AnalysisResults[sig]['RoughEventLocations'] = uf.RecursiveLowPassFast(self.data[sig], self.coefficients[sig], self)
                 if self.UpwardsOn:
                     self.AnalysisResultsUp[sig+'_Up'] = {}
-                    self.AnalysisResultsUp[sig+'_Up']['RoughEventLocations'] = uf.RecursiveLowPassFastUp(self.out[self.sig], self.coefficients[sig])
+                    self.AnalysisResultsUp[sig+'_Up']['RoughEventLocations'] = uf.RecursiveLowPassFastUp(self.data[self.sig], self.coefficients[sig])
 
 
             end1 = timer()
-            print('The Low-pass took {} s on both channels.'.format(str(start1-end1)))
+            print('The Low-pass took {} s on both channels.'.format(str(end1 - start1)))
             self.sig = 'i1'
             uf.AddInfoAfterRecursive(self)
             self.sig = 'i2'
@@ -716,9 +716,9 @@ class GUIForm(QtGui.QMainWindow):
         else:
             start1 = timer()
             self.AnalysisResults['i1'] = {}
-            self.AnalysisResults['i1']['RoughEventLocations'] = uf.RecursiveLowPassFast(self.out['i1'], self.coefficients['i1'], self)
+            self.AnalysisResults['i1']['RoughEventLocations'] = uf.RecursiveLowPassFast(self.data['i1'], self.coefficients['i1'], self)
             if self.UpwardsOn:
-                self.AnalysisResults['i1_Up']['RoughEventLocations'] = uf.RecursiveLowPassFast(self.out['i1'],
+                self.AnalysisResults['i1_Up']['RoughEventLocations'] = uf.RecursiveLowPassFast(self.data['i1'],
                                                                                             self.coefficients['i1'])
             end1 = timer()
             print('The Low-pass took {} s on both channels.'.format(str(start1 - end1)))
@@ -732,12 +732,13 @@ class GUIForm(QtGui.QMainWindow):
             print('Saving took {} s on both channels.'.format(str(end3 - end2)))
 
     def inspectevent(self, clicked = []):
-        if self.out['graphene']:
+        if self.data['graphene']:
             if self.ui.actionPlot_Common_Events.isChecked():
                 uf.PlotEventDoubleFit(self, clicked)
             elif self.ui.actionPlot_i1_detected_only.isChecked() or self.ui.actionPlot_i2_detected_only.isChecked():
                 uf.PlotEventDouble(self)
         else:
+            #uf.PlotEventSingle_CUSUM(self, clicked)
             uf.PlotEventSingle(self, clicked)
 
     def nextevent(self):
@@ -782,10 +783,10 @@ class GUIForm(QtGui.QMainWindow):
         self.p2.setData(x=[],y=[])
         self.lastevent=[]
         self.ui.scatterplot.update()
-        self.w2.clear()
-        self.w3.clear()
-        self.w4.clear()
-        self.w5.clear()
+        self.w2.clear() #clear frac plot
+        self.w3.clear() #deli histogram plot
+        self.w4.clear() #Dwell histogram plot
+        self.w5.clear() #Dt histogram plot
         self.sdf = pd.DataFrame(columns = ['fn','color','deli','frac',
             'dwell','dt','startpoints','endpoints'])
 
@@ -855,7 +856,7 @@ class GUIForm(QtGui.QMainWindow):
         self.var['i1'] = np.std(self.data['i1'])
         try:
             self.data['i2']= - self.data['i2']
-            self.data['v2'] = - self.out['v2']
+            self.data['v2'] = - self.data['v2']
             self.var['i2'] = np.std(self.data['i2'])
         except KeyError: 
             pass       
