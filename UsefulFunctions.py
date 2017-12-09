@@ -603,64 +603,63 @@ def SaveToHDF5(self):
     # segmentation_LP.create_dataset('Frequency', data=self.dt)
     # segmentation_LP.create_dataset('NumberOfEvents', data=self.numberofevents)
 
-def RecursiveLowPass(signal, coeff):
-    Ni = len(signal)
-    RoughEventLocations = []
-    ml = np.zeros((Ni, 1))#mean
-    vl = np.zeros((Ni, 1))#sqrt(STD)
-    ml[0] = np.mean(signal)
-    vl[0] = np.var(signal)
-    i = 0
-    NumberOfEvents = 0
-    while i < (Ni - 2):
-        i += 1
-        # local mean low pass filtering
-        ml[i] = coeff['a'] * ml[i - 1] + (1 - coeff['a']) * signal[i]
-        vl[i] = coeff['a'] * vl[i - 1] + (1 - coeff['a']) * (signal[i] - ml[i])**2
-        Sl = ml[i] - coeff['S'] * np.sqrt(vl[i])
-        if signal[i + 1] <= Sl:
-            NumberOfEvents += 1
-            start = 1 + i
-            El = ml[i] - coeff['E'] * np.sqrt(vl[i])
-            Mm = ml[i]
-            Vv = vl[i]
-            duration = 0
-            while signal[i + 1] < El and i < (Ni - 2) and duration < coeff['eventlengthLimit']:
-                duration += 1
-                i += 1
-            if duration >= coeff['eventlengthLimit'] or i > (Ni - 10):
-                NumberOfEvents -= 1
-            else:
-                k = start
-                while signal[k] < Mm and k > 1:
-                    k -= 1
-                start = k - 1
-                k2 = i + 1
-                while signal[k2] > Mm:
-                    k2 -= 1
-                endp = k2 + 1
 
-                RoughEventLocations.append((start,endp,Mm, Vv))
-                ml[i] = Mm
-                vl[i] = Vv
-    return np.array(RoughEventLocations)
 
 def RecursiveLowPassFast(signal, coeff, self):
-    ml = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], signal) #mean
-    vl = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], np.square(signal - ml))
-    sl = ml - coeff['S'] * np.sqrt(vl)
-    self.p1.plot(self.t, ml, pen=pg.mkPen(color=(173, 27, 183), width=3))
+    """Recursive Low Pass filter applied to signal to detect abrupt changes in data.
+    Parameters
+    ----------
+    signal : 1D array_like array,
+        self.data['i1'] or self.data['i2']. 
+    coeff : dictionary, {'a': np.float(a), 'E': np.float(E),
+                                   'S': np.float(S),
+                                   'eventlengthLimit': np.float(eventlengthLimit)
+                                   *self.outputsamplerate}
+    self : self.t, 1D array_like array, time (corresponding to current)
+        in seconds 
     
+    Returns
+    -------
+    output : 1D array_like [start, end, Running_mean[start], 
+        Running_square_variance[start] ], 
+        array of lists containing info about starting, ending 
+        position of evens in points, Running mean value and 
+        Running square variance at the starting point.
+    
+    Notes
+    -----
+    Fast algorithm for event detection. Filters signals and finds points which deviate from local Running mean more than coeff['S']*STD.
+    References
+    ----------
+    .. [1] 
+    Examples
+    """
+    # Creates running mean value of the input
+    ml = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], signal) 
+    # Plot Running threshold value at the current plot
+    self.p1.plot(self.t, ml, pen=pg.mkPen(color=(246, 178, 255), width=3))
+
+    # Creates running square deviation from the mean
+    vl = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], np.square(signal - ml))
+    # Creates "threshold line". If current value < sl[i] ->  i belongs to event. 
+    sl = ml - coeff['S'] * np.sqrt(vl)
+    self.p1.plot(self.t, sl, pen=pg.mkPen(color=(173, 27, 183), width=3))
+    # Finds the length of the initial signal
     Ni = len(signal)
+    # Finds those points where signal less than "threshold line"
     points = np.array(np.where(signal<=sl)[0])
-    to_pop=np.array([])
+    to_pop=np.array([]) # Empty supplementary array for finding adjacent points 
+    # For loop for finding adjacent points 
     for i in range(1,len(points)):
         if points[i] - points[i - 1] == 1:
             to_pop=np.append(to_pop, i)
+    # Points contain only border points of events
     points = np.delete(points, to_pop)
+    # Empty list for Event location storage
     RoughEventLocations = []
-    NumberOfEvents=0
+    NumberOfEvents=0 #Number of events
 
+    # For Loop for finding separating edges of different events and satisfying Event length limits
     for i in points:
         if NumberOfEvents is not 0:
             if i >= RoughEventLocations[NumberOfEvents-1][0] and i <= RoughEventLocations[NumberOfEvents-1][1]:
@@ -691,12 +690,13 @@ def RecursiveLowPassFast(signal, coeff, self):
 
     return np.array(RoughEventLocations)
 
-def RecursiveLowPassFastUp(signal, coeff):
+def RecursiveLowPassFastUp(signal, coeff, self):
     ml = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], signal)
     vl = scipy.signal.lfilter([1 - coeff['a'], 0], [1, -coeff['a']], np.square(signal - ml))
-    sl = ml + coeff['S'] * np.sqrt(vl)
+    sl = ml + coeff['S'] * np.sqrt(vl) #diff
     Ni = len(signal)
-    points = np.array(np.where(signal>=sl)[0])
+    self.p1.plot(self.t, ml, pen=pg.mkPen(color=(173, 27, 183), width=3))
+    points = np.array(np.where(signal>=sl)[0]) #diff
     to_pop=np.array([])
     for i in range(1,len(points)):
         if points[i] - points[i - 1] == 1:
@@ -713,21 +713,21 @@ def RecursiveLowPassFastUp(signal, coeff):
                 continue
         NumberOfEvents += 1
         start = i
-        El = ml[i] + coeff['E'] * np.sqrt(vl[i])
+        El = ml[i] + coeff['E'] * np.sqrt(vl[i]) #diff
         Mm = ml[i]
         duration = 0
-        while signal[i + 1] > El and i < (Ni - 2) and duration < coeff['eventlengthLimit']:
+        while signal[i + 1] > El and i < (Ni - 2) and duration < coeff['eventlengthLimit']: #diff
             duration += 1
             i += 1
         if duration >= coeff['eventlengthLimit'] or i > (Ni - 10):
             NumberOfEvents -= 1
         else:
             k = start
-            while signal[k] > Mm and k > 2:
+            while signal[k] > Mm and k > 2: #diff
                 k -= 1
             start = k - 1
             k2 = i + 1
-            while signal[k2] > Mm:
+            while signal[k2] > Mm: #starange!!!!!
                 k2 -= 1
             endp = k2
             RoughEventLocations.append((start, endp, ml[start], vl[start]))
@@ -735,16 +735,43 @@ def RecursiveLowPassFastUp(signal, coeff):
     return np.array(RoughEventLocations)
 
 def AddInfoAfterRecursive(self):
+    """Analyse exsisting event data and returns information about each event in details.
+    Parameters
+    ----------
+    self.sig : 'i1' or 'i2' for ionic and transverse channels respectively
+
+    self.AnalysisResults[self.sig]['RoughEventLocations']: 2D array_like 
+        (Number of events, 4) containing   
+        [start, end, Running_mean[start], 
+        Running_square_variance[start] ]
+        for different events
+    self.data: 'i1' or 'i2'
     
-    #self.p1.plot(self.t, np.sin(self.t), pen='b')
-    #self.p1.plt.axvline(10, color='green')
+    Returns (creates variables)
+    -------
+    output : 1D array_like [start, end, Running_mean[start], 
+    self.AnalysisResults[self.sig]['FractionalCurrentDrop']  current drop in series of events / current level at start 
+    self.AnalysisResults[self.sig]['DeltaI']  #current drop nA in series of events
+    self.AnalysisResults[self.sig]['DwellTime']  #end[i] - start[i] in sec. in series of 
+        events
+    self.AnalysisResults[self.sig]['Frequency'] # start[i+1] - start[i] in sec. in series of 
+        events
+    
+    Notes
+    -----
+    Returns information about relative current drop, absolute current drop, length of event and time differences between different events.
+    .
+    References
+    ----------
+    .. [1] 
+    Examples
+    """
+    
     print('Info about channel:'  + str(self.sig))
     startpoints = np.uint64(self.AnalysisResults[self.sig]['RoughEventLocations'][:, 0])
     endpoints = np.uint64(self.AnalysisResults[self.sig]['RoughEventLocations'][:, 1])
     localBaseline = self.AnalysisResults[self.sig]['RoughEventLocations'][:, 2]
     localVariance = self.AnalysisResults[self.sig]['RoughEventLocations'][:, 3]
-    print('Start points=')
-    print('type='+ str(type(startpoints[0])))
     for (j,k) in enumerate(startpoints): print("%10.7f"% float(startpoints[j]/self.outputsamplerate))
     CusumBaseline=500
     numberofevents = len(startpoints)
@@ -766,8 +793,8 @@ def AddInfoAfterRecursive(self):
         length = endpoints[i] - startpoints[i]
         if length <= limit and length>3:
             # Impulsion Fit to minimal value
-            deli[i] = localBaseline[i] - np.min(self.data[self.sig][int(startpoints[i]+1):int(endpoints[i]-1)])
-            dwell[i] = (endpoints[i] - startpoints[i]) / self.outputsamplerate #length of event
+            deli[i] = localBaseline[i] - np.min(self.data[self.sig][int(startpoints[i]+1):int(endpoints[i]-1)]) #current drop cuurrent at starting point - current minimal velue
+            dwell[i] = (endpoints[i] - startpoints[i]) / self.outputsamplerate #length of event in seconds
         elif length > limit:
             deli[i] = localBaseline[i] - np.mean(self.data[self.sig][int(startpoints[i]+5):int(endpoints[i]-5)])
             dwell[i] = (endpoints[i] - startpoints[i]) / self.outputsamplerate
@@ -785,101 +812,180 @@ def AddInfoAfterRecursive(self):
             deli[i] = localBaseline[i] - np.min(self.data[self.sig][startpoints[i]:endpoints[i]])
             dwell[i] = (endpoints[i] - startpoints[i]) / self.outputsamplerate
 
-    frac = deli / localBaseline
+    frac = deli / localBaseline #fraction: current drop / current at start
     dt = np.array(0)
-    dt = np.append(dt, np.diff(startpoints) / self.outputsamplerate)
+    dt = np.append(dt, np.diff(startpoints) / self.outputsamplerate) # differences between starts of different events (Frequency of events)
     numberofevents = len(dt)
 
     #self.AnalysisResults[self.sig]['CusumFits'] = AllFits
-    self.AnalysisResults[self.sig]['FractionalCurrentDrop'] = frac
-    self.AnalysisResults[self.sig]['DeltaI'] = deli
-    self.AnalysisResults[self.sig]['DwellTime'] = dwell
-    self.AnalysisResults[self.sig]['Frequency'] = dt
+    self.AnalysisResults[self.sig]['FractionalCurrentDrop'] = frac # current drop / current at start 
+    self.AnalysisResults[self.sig]['DeltaI'] = deli #current drop in nA
+    self.AnalysisResults[self.sig]['DwellTime'] = dwell #end[i] - start[i] in sec.
+    self.AnalysisResults[self.sig]['Frequency'] = dt # start[i+1] - start[i] in sec.
 
 def SavingAndPlottingAfterRecursive(self):
+    """Plotting the results of analysis done by Low Pass.
+    Parameters
+    ----------
+    For series of events:
+    self.AnalysisResults[self.sig]['StartPoints'] : Starting points of events in sec.
+    self.AnalysisResults[self.sig]['EndPoints'] : Ending points of events in sec.
+    self.AnalysisResults[self.sig]['NumberOfEvents'] : Total number of events
+    self.AnalysisResults[self.sig]['DeltaI'] : Current drop in nA
+    self.AnalysisResults[self.sig]['DwellTime'] : end[i] - start[i] in sec.
+    self.AnalysisResults[self.sig]['FractionalCurrentDrop'] : current drop / current at 
+        start 
+    self.AnalysisResults[self.sig]['Frequency'] : end[i] - start[i] in sec.
+    self.AnalysisResults[self.sig]['LocalBaseline'] : start[i+1] - start[i] in sec.
+    
+    Returns (creates figures)
+    -------
+    
+    
+    Notes
+    -----
+    .
+    .
+    References
+    ----------
+    .. [1] 
+    Examples
+    """
 
+
+    #Starting points of events in sec.
     startpoints=self.AnalysisResults[self.sig]['StartPoints']
+
+    #Ending points of events in sec.
     endpoints=self.AnalysisResults[self.sig]['EndPoints']
+
+    #Total number of events
     numberofevents=self.AnalysisResults[self.sig]['NumberOfEvents']
+
+    #Current drop in nA
     deli=self.AnalysisResults[self.sig]['DeltaI']
+
+    #end[i] - start[i] in sec.
     dwell=self.AnalysisResults[self.sig]['DwellTime']
+
+    #current drop / current at start 
     frac=self.AnalysisResults[self.sig]['FractionalCurrentDrop']
+
+    #start[i+1] - start[i] in sec.
     dt=self.AnalysisResults[self.sig]['Frequency']
+
+    #start[i+1] - start[i] in sec.
     localBaseline=self.AnalysisResults[self.sig]['LocalBaseline']
 
+    # If plotting takes too much time: "Don_t_plot..." the graph will be deleted
     if not self.ui.actionDon_t_Plot_if_slow.isChecked():
+        #clear signal plot
         self.p1.clear()
-        # Event detection plot, Main Window
+        # Event detection plot, Signal Plot
         self.p1.plot(self.t, self.data[self.sig], pen='b')
+        # Draw green circles indicating start of event
         self.p1.plot(self.t[startpoints],  self.data[self.sig][startpoints], pen=None, symbol='o', symbolBrush='g', symbolSize=10)
+        # Draw red circles indicating end of event
         self.p1.plot(self.t[endpoints],  self.data[self.sig][endpoints], pen=None, symbol='o', symbolBrush='r', symbolSize=10)
         #self.p1.plot(self.t[startpoints-10], localBaseline, pen=None, symbol='x', symbolBrush='y', symbolSize=10)
-
+    
+    # choice only data for current file name
     try:
         self.p2.data = self.p2.data[np.where(np.array(self.sdf.fn) != self.matfilename)]
     except:
         IndexError
+    #Data frame for event info storage
     self.sdf = self.sdf[self.sdf.fn != self.matfilename]
-
+    
+    #Panda series with file name of data loaded (without ending .dat or some other) 
+    #repeated numberofevents times
     fn = pd.Series([self.matfilename, ] * numberofevents)
+    
+    #Same color identification repeated numberofevents
     color = pd.Series([self.cb.color(), ] * numberofevents)
-
+    
     self.sdf = self.sdf.append(pd.DataFrame({'fn': fn, 'color': color, 'deli': deli,
                                              'frac': frac, 'dwell': dwell,
                                              'dt': dt, 'startpoints': startpoints,
                                              'endpoints': endpoints, 'baseline': localBaseline}), ignore_index=True)
-
-    self.p2.addPoints(x=np.log10(dwell), y=frac,
+    
+    # Create Scatter plot with
+    # x = log10(dwell)
+    # y = current drop / current at start
+    #self.p2.addPoints(x=np.log10(dwell), y=frac, symbol='o', brush=(self.cb.color()), pen=None, size=10)
+    self.p2.addPoints(x=dwell, y=frac,
                       symbol='o', brush=(self.cb.color()), pen=None, size=10)
-
     self.w1.addItem(self.p2)
-    self.w1.setLogMode(x=True, y=False)
+    self.w1.setLogMode(x=False, y=False)
     self.p1.autoRange()
     self.w1.autoRange()
-    self.ui.scatterplot.update()
+    self.ui.scatterplot.update() # Replot Scatter plot
+    # Set y - axis range
     self.w1.setRange(yRange=[0, 1])
-
+    
+    # Pandas series of colors. 
     colors = self.sdf.color
+    # If we have data from different experiments and different analyte
+    # we can change the color for them 
     for i, x in enumerate(colors):
+
+        # Preparation for distribution histogram of fraction. Different color
+        # Corresponds to different experiments
+        # For better undarstanding see Feng et. al Indentification of single nucliotides
+        # in MoS2 nanopores - different nucliotides for different colors 
+        # frac = current drop / current at start 
         fracy, fracx = np.histogram(self.sdf.frac[self.sdf.color == x],
                                     bins=np.linspace(0, 1, int(self.ui.fracbins.text())))
-        deliy, delix = np.histogram(self.sdf.deli[self.sdf.color == x],
-                                    bins=np.linspace(float(self.ui.delirange0.text()) * 10 ** -9,
-                                                     float(self.ui.delirange1.text()) * 10 ** -9,
-                                                     int(self.ui.delibins.text())))
-        bins_dwell=np.linspace(float(self.ui.dwellrange0.text()), float(self.ui.dwellrange1.text()), int(self.ui.dwellbins.text()))
-        dwelly, dwellx = np.histogram(np.log10(self.sdf.dwell[self.sdf.color == x]),
-                                      bins=bins_dwell,range=(bins_dwell.min(),bins_dwell.max()))
-        dty, dtx = np.histogram(self.sdf.dt[self.sdf.color == x],
-                                bins=np.linspace(float(self.ui.dtrange0.text()), float(self.ui.dtrange1.text()),
-                                                 int(self.ui.dtbins.text())))
+        # Create pyqtgraph hist of Fraction data
+        hist = pg.PlotCurveItem(fracx, fracy , stepMode = True, 
+                                fillLevel=0, brush = x, pen = 'k')       
+        #Plot Frac histogram 
+        self.w2.addItem(hist) 
+        
 
-        #            hist = pg.PlotCurveItem(fracy, fracx , stepMode = True, fillLevel=0, brush = x, pen = 'k')
-        #            self.w2.addItem(hist)
-
-        hist = pg.BarGraphItem(height=fracy, x0=fracx[:-1], x1=fracx[1:], brush=x)
-        self.w2.addItem(hist) #Frac histogram plot
-
-        #            hist = pg.PlotCurveItem(delix, deliy , stepMode = True, fillLevel=0, brush = x, pen = 'k')
-        #            self.w3.addItem(hist)
-
-        hist = pg.BarGraphItem(height=deliy, x0=delix[:-1], x1=delix[1:], brush=x)
+        # Preparation for distribution histogram of Current drop in nA.
+        # Idea of color choice is the same as in histogram above.
+        deliy, delix = np.histogram(self.sdf.deli[self.sdf.color == x], 
+                                    bins=np.linspace(float(self.ui.delirange0.text()) *1e-9, 
+                                    float(self.ui.delirange1.text()) * 1e-9, 
+                                    int(self.ui.delibins.text())))
+        # Create pyqtgraph hist of Deli data
+        #hist = pg.BarGraphItem(height=deliy, x0=delix[:-1], x1=delix[1:], brush=x)
+        hist = pg.PlotCurveItem(delix, deliy , stepMode = True, 
+                                fillLevel=0, brush = x, pen = 'k')
         self.w3.addItem(hist) #Deli histogram plot
-        #            self.w3.autoRange()
-        self.w3.setRange(
-            xRange=[float(self.ui.delirange0.text()) * 10 ** -9, float(self.ui.delirange1.text()) * 10 ** -9])
+        self.w3.setRange(xRange=[float(self.ui.delirange0.text()) * 10 ** -9,
+                         float(self.ui.delirange1.text()) * 10 ** -9])
+        
+        # Preparation for distribution histogram of length of events expressed as
+        # end[i] - start[i] in sec..
+        # Idea of color choice is the same as in histogram above.
+        #linspace for bins
+        print('dwell = ' + str(self.sdf.dwell))
+        bins_dwell = np.linspace(float(self.ui.dwellrange0.text()) * 1e-6, 
+                                 float(self.ui.dwellrange1.text()) * 1e-6, 
+                                 int(self.ui.dwellbins.text()))
 
-        #            hist = pg.PlotCurveItem(dwellx, dwelly , stepMode = True, fillLevel=0, brush = x, pen = 'k')
-        #            self.w4.addItem(hist)
+        dwelly, dwellx = np.histogram((self.sdf.dwell[self.sdf.color == x]),
+                                      bins=bins_dwell,range=(bins_dwell.min(),
+                                      bins_dwell.max()))
+        hist = pg.PlotCurveItem(dwellx, dwelly , stepMode = True, 
+                                fillLevel=0, brush = x, pen = 'k')
+        self.w4.addItem(hist)
 
-        hist = pg.BarGraphItem(height=dwelly, x0=dwellx[:-1], x1=dwellx[1:], brush=x)
-        self.w4.addItem(hist) #Dwell histogram plot
+       
+        # Preparation for distribution histogram of start[i+1] - start[i] in sec. 
+        # "Frequency" of events expressed as
+        # Idea of color choice is the same as in histogram above.
 
-        #            hist = pg.PlotCurveItem(dtx, dty , stepMode = True, fillLevel=0, brush = x, pen = 'k')
-        #            self.w5.addItem(hist)
-
-        hist = pg.BarGraphItem(height=dty, x0=dtx[:-1], x1=dtx[1:], brush=x)
+        dty, dtx = np.histogram(self.sdf.dt[self.sdf.color == x],
+                                bins=np.linspace(float(self.ui.dtrange0.text()), 
+                                float(self.ui.dtrange1.text()),
+                                int(self.ui.dtbins.text())))
+        hist = pg.PlotCurveItem(dtx, dty , stepMode = True, 
+                                fillLevel=0, brush = x, pen = 'k')
         self.w5.addItem(hist) #Dt histogram plot
+
 
 def save(self):
     np.savetxt(self.matfilename + 'DB.txt', np.column_stack((self.deli, self.frac, self.dwell, self.dt)),
